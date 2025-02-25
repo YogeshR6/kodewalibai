@@ -56,6 +56,12 @@ const securityPatterns = [
     description:
       "Using HTTP instead of HTTPS can expose data to eavesdropping.",
   },
+  {
+    pattern: /apiKey\s*=\s*["']*[^"']+/g,
+    title: "Hardcoded API keys",
+    description:
+      "Hardcoded API keys or tokens expose your service to unauthorized access.",
+  },
 ];
 
 // Configure ESLint
@@ -66,6 +72,10 @@ const eslintConfig = {
     sourceType: "module",
     ecmaFeatures: {
       jsx: true,
+    },
+    requireConfigFile: false,
+    babelOptions: {
+      presets: ["@babel/preset-react"],
     },
   },
   env: {
@@ -79,6 +89,9 @@ const eslintConfig = {
     "no-unused-vars": "warn",
     "no-console": "warn",
     "no-undef": "error",
+    "no-cond-assign": "error",
+    "no-unreachable": "warn",
+    "no-compare-neg-zero": "error",
     semi: ["error", "always"],
   },
 };
@@ -202,25 +215,45 @@ async function lintCode(code, ext = ".js") {
 
 // Function to determine file extension from code
 function guessFileExtension(code) {
+  // Check for React components
   if (
     code.includes("import React") ||
-    (code.includes("class") && code.includes("extends React.Component"))
+    (code.includes("class") && code.includes("extends React.Component")) ||
+    code.includes("ReactDOM.render")
   ) {
     return code.includes("tsx") ? ".tsx" : ".jsx";
   }
+
+  // Check for JavaScript functions and arrow functions
   if (
-    code.includes("function") &&
-    code.includes("=>") &&
-    code.includes("const")
+    code.includes("function") ||
+    code.includes("=>") ||
+    code.includes("const") ||
+    code.includes("let") ||
+    code.includes("var")
   ) {
     return ".js";
   }
+
+  // Check for HTML documents
   if (code.includes("<!DOCTYPE html>") || code.includes("<html>")) {
     return ".html";
   }
+
+  // Check for CSS styles
   if (code.includes("@import") || (code.includes("{}") && code.includes(";"))) {
     return ".css";
   }
+
+  // Check for Python functions
+  if (
+    code.includes("def ") ||
+    code.includes("import ") ||
+    code.includes("class ")
+  ) {
+    return ".py"; // Return Python file extension
+  }
+
   return ".js"; // Default to JavaScript
 }
 
@@ -283,6 +316,12 @@ export async function POST(request) {
     // Handle code snippet
     if (type === "code") {
       const fileExt = guessFileExtension(content);
+      if (fileExt !== ".py" && fileExt !== ".js" && fileExt !== ".jsx") {
+        return NextResponse.json(
+          { error: "Unsupported file type" },
+          { status: 400 }
+        );
+      }
       const lintIssues = await lintCode(content, fileExt);
       const securityIssues = scanForSecurityIssues(content);
       const aiReview = await getAIReview(content);

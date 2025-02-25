@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 
 export default function Home() {
   const [inputType, setInputType] = useState("code"); // "code" or "repo"
@@ -34,10 +33,36 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to analyze code");
+        throw new Error(
+          "Failed to analyze code please check the code or link and try again"
+        );
       }
 
       const data = await response.json();
+      // Filter out duplicate eslint errors and warnings based on line and message
+      const uniqueLintIssues = data.lintIssues.reduce((unique, item) => {
+        const identifier = `${item.line}-${item.message}`;
+        return unique.some(
+          (issue) => `${issue.line}-${issue.message}` === identifier
+        )
+          ? unique
+          : [...unique, item];
+      }, []);
+      data.lintIssues = uniqueLintIssues;
+
+      // Filter out duplicate security issues based on title
+      const uniqueSecurityIssues = data.securityIssues.reduce(
+        (unique, item) => {
+          const identifier = `${item.location}-${item.title}`;
+          return unique.some(
+            (issue) => `${issue.location}-${issue.title}` === identifier
+          )
+            ? unique
+            : [...unique, item];
+        },
+        []
+      );
+      data.securityIssues = uniqueSecurityIssues;
       setResults(data);
     } catch (err) {
       setError(err.message || "An error occurred during code analysis");
@@ -51,11 +76,11 @@ export default function Home() {
       <header className="bg-white dark:bg-gray-800 shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            KodeReview
+            AI Code Review
           </h1>
           <div className="flex items-center space-x-4">
             <a
-              href="https://github.com/yourusername/kodereview"
+              href="https://github.com/yogeshr6/kodewalibai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -79,6 +104,13 @@ export default function Home() {
                 Paste your code or enter a GitHub repository URL to get a
                 comprehensive review.
               </p>
+
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <strong>Note:</strong> Currently, only Python and
+                  JavaScript/JSX files are supported for review.
+                </p>
+              </div>
 
               <div className="mt-6">
                 <div className="flex items-center mb-4">
@@ -112,18 +144,24 @@ export default function Home() {
                   {inputType === "code" ? (
                     <textarea
                       className="w-full h-64 px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
-                      placeholder="Paste your code here..."
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                    ></textarea>
-                  ) : (
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
-                      placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
+                      placeholder="Paste your Python or JavaScript code here..."
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                     />
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
+                        placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                      />
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Note: Only Python (.py) and JavaScript (.js, .jsx) files
+                        from the repository will be analyzed.
+                      </p>
+                    </>
                   )}
 
                   {error && (
@@ -226,13 +264,6 @@ export default function Home() {
           </div>
         </div>
       </main>
-      <footer className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            &copy; {new Date().getFullYear()} KodeReview. All rights reserved.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

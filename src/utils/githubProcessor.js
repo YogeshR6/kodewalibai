@@ -52,22 +52,8 @@ export async function cloneRepository(url) {
   }
 }
 
-// Function to get all code files from a directory, filtering out non-code files
-export async function getCodeFiles(
-  dir,
-  extensions = [
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".html",
-    ".css",
-    ".scss",
-    ".py",
-    ".rb",
-    ".java",
-  ]
-) {
+// Function to get all code files from a directory, filtering for Python and JavaScript files only
+export async function getCodeFiles(dir, extensions = [".js", ".jsx", ".py"]) {
   const files = [];
 
   async function scanDirectory(currentDir) {
@@ -87,6 +73,10 @@ export async function getCodeFiles(
             "out",
             ".next",
             "coverage",
+            "__pycache__",
+            "venv",
+            "env",
+            ".venv",
           ].includes(entry.name)
         ) {
           await scanDirectory(fullPath);
