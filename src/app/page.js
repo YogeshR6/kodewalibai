@@ -1,100 +1,237 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [inputType, setInputType] = useState("code"); // "code" or "repo"
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!input) {
+      setError("Please enter code or a GitHub repository URL");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: inputType,
+          content: input,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to analyze code");
+      }
+
+      const data = await response.json();
+      setResults(data);
+    } catch (err) {
+      setError(err.message || "An error occurred during code analysis");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 shadow">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            KodeReview
+          </h1>
+          <div className="flex items-center space-x-4">
+            <a
+              href="https://github.com/yourusername/kodereview"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            >
+              <span className="sr-only">GitHub</span>
+              <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </header>
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                Code Review
+              </h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Paste your code or enter a GitHub repository URL to get a
+                comprehensive review.
+              </p>
+
+              <div className="mt-6">
+                <div className="flex items-center mb-4">
+                  <div className="flex items-center space-x-4">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        name="inputType"
+                        value="code"
+                        checked={inputType === "code"}
+                        onChange={() => setInputType("code")}
+                      />
+                      <span className="ml-2">Code Snippet</span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        name="inputType"
+                        value="repo"
+                        checked={inputType === "repo"}
+                        onChange={() => setInputType("repo")}
+                      />
+                      <span className="ml-2">GitHub Repository</span>
+                    </label>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubmit}>
+                  {inputType === "code" ? (
+                    <textarea
+                      className="w-full h-64 px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
+                      placeholder="Paste your code here..."
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                    ></textarea>
+                  ) : (
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
+                      placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                    />
+                  )}
+
+                  {error && (
+                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                      {error}
+                    </p>
+                  )}
+
+                  <div className="mt-4">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Analyzing..." : "Review Code"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {isLoading && (
+              <div className="px-4 py-5 sm:p-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+                </div>
+                <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+                  Analyzing your code... This may take a moment.
+                </p>
+              </div>
+            )}
+
+            {results && !isLoading && (
+              <div className="px-4 py-5 sm:p-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  Review Results
+                </h3>
+
+                {results.lintIssues && results.lintIssues.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
+                      ESLint Issues ({results.lintIssues.length})
+                    </h4>
+                    <ul className="space-y-2">
+                      {results.lintIssues.map((issue, index) => (
+                        <li
+                          key={index}
+                          className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md"
+                        >
+                          <span className="font-mono text-sm">
+                            Line {issue.line}: {issue.message}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {results.securityIssues &&
+                  results.securityIssues.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
+                        Security Issues ({results.securityIssues.length})
+                      </h4>
+                      <ul className="space-y-2">
+                        {results.securityIssues.map((issue, index) => (
+                          <li
+                            key={index}
+                            className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md"
+                          >
+                            <div className="font-medium">{issue.title}</div>
+                            <div className="text-sm mt-1">
+                              {issue.description}
+                            </div>
+                            {issue.location && (
+                              <div className="font-mono text-xs mt-1">
+                                Location: {issue.location}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                {results.aiReview && (
+                  <div className="mb-6">
+                    <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
+                      AI Review
+                    </h4>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
+                      <div className="prose dark:prose-invert max-w-none">
+                        {results.aiReview}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      <footer className="bg-white dark:bg-gray-800 shadow">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+            &copy; {new Date().getFullYear()} KodeReview. All rights reserved.
+          </p>
+        </div>
       </footer>
     </div>
   );
