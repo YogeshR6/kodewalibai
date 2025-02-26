@@ -12,7 +12,7 @@ import OpenAI from "openai";
 import { processRepository } from "@/utils/githubProcessor";
 
 // Initialize OpenAI client (would need an API key in production)
-// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY_2 });
 
 // Security patterns to scan for
 const securityPatterns = [
@@ -127,45 +127,28 @@ async function getAIReview(code) {
     // For now, we'll return a static analysis since we're not connecting to an actual API
     // In production, this would call an AI API like OpenAI
 
-    /* Example of how to call OpenAI API:
+    // Example of how to call OpenAI API:
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are a code review assistant. Analyze the following code for quality, architecture, and best practices."
+          content:
+            "You are a code review assistant. Analyze the following code for quality, architecture, and best practices.",
         },
         {
           role: "user",
-          content: code
-        }
+          content: code,
+        },
       ],
+      max_tokens: 500,
     });
-    
+
     return completion.choices[0].message.content;
-    */
-
-    // Sample response for demonstration
-    return `
-      ## Code Review
-
-      ### Structure and Readability
-      - The code is generally well-structured but could benefit from more consistent formatting.
-      - Consider adding more comments to explain complex logic.
-      
-      ### Best Practices
-      - Follow the principle of single responsibility for functions and components.
-      - Implement proper error handling for asynchronous operations.
-      
-      ### Performance Considerations
-      - Look for opportunities to memoize expensive calculations.
-      - Consider using optimized data structures for large datasets.
-      
-      These are general suggestions. For more specific feedback, connect the application to a full AI code review service.
-    `;
   } catch (error) {
-    console.error("Error getting AI review:", error);
-    return "Unable to perform AI review at this time.";
+    // console.error("Error getting AI review:", error);
+    // return "Unable to perform AI review at this time.";
+    return "";
   }
 }
 

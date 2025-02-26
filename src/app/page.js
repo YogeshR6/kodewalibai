@@ -1,18 +1,88 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+
+// Line Numbered Code Editor Component
+function CodeEditor({ value, onChange }) {
+  const textareaRef = useRef(null);
+  const lineNumbersRef = useRef(null);
+
+  // Update line numbers when content changes
+  useEffect(() => {
+    const lineCount = value.split("\n").length;
+    const lineNumbers = Array(lineCount)
+      .fill()
+      .map((_, i) => i + 1)
+      .join("\n");
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.innerText = lineNumbers;
+    }
+
+    // Sync scrolling
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, [value]);
+
+  // Handle scrolling to sync line numbers with textarea
+  const handleScroll = (e) => {
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = e.target.scrollTop;
+    }
+  };
+
+  return (
+    <div className="relative flex border rounded-lg dark:border-gray-600 text-gray-700 dark:text-gray-300">
+      <div
+        ref={lineNumbersRef}
+        className="line-numbers font-mono text-xs text-gray-400 text-right py-2 px-3 border-r dark:border-gray-600 select-none bg-gray-50 dark:bg-gray-800 rounded-l-lg"
+        style={{
+          minWidth: "2.5rem",
+          overflowY: "hidden",
+          whiteSpace: "pre",
+          lineHeight: "2",
+          userSelect: "none",
+          paddingTop: "0.5rem",
+        }}
+      >
+        1
+      </div>
+      <textarea
+        ref={textareaRef}
+        className="w-full px-1 py-2 outline-none resize-none dark:bg-gray-700 rounded-r-lg font-mono"
+        placeholder="Paste your Python or JavaScript code here..."
+        value={value}
+        onChange={onChange}
+        onScroll={handleScroll}
+        style={{
+          minHeight: "16rem",
+          lineHeight: "1.5",
+          paddingTop: "0.5rem",
+        }}
+      />
+    </div>
+  );
+}
 
 export default function Home() {
   const [inputType, setInputType] = useState("code"); // "code" or "repo"
-  const [input, setInput] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [repoInput, setRepoInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
 
+  // Get the current input based on input type
+  const getCurrentInput = () => {
+    return inputType === "code" ? codeInput : repoInput;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!input) {
+    const currentInput = getCurrentInput();
+
+    if (!currentInput) {
       setError("Please enter code or a GitHub repository URL");
       return;
     }
@@ -28,7 +98,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           type: inputType,
-          content: input,
+          content: currentInput,
         }),
       });
 
@@ -142,11 +212,9 @@ export default function Home() {
 
                 <form onSubmit={handleSubmit}>
                   {inputType === "code" ? (
-                    <textarea
-                      className="w-full h-64 px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
-                      placeholder="Paste your Python or JavaScript code here..."
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                    <CodeEditor
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value)}
                     />
                   ) : (
                     <>
@@ -154,8 +222,8 @@ export default function Home() {
                         type="text"
                         className="w-full px-3 py-2 text-gray-700 dark:text-gray-300 border rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600"
                         placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        value={repoInput}
+                        onChange={(e) => setRepoInput(e.target.value)}
                       />
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         Note: Only Python (.py) and JavaScript (.js, .jsx) files
@@ -197,68 +265,61 @@ export default function Home() {
             {results && !isLoading && (
               <div className="px-4 py-5 sm:p-6 border-t border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  Review Results
+                  All Issues and Recommendations
                 </h3>
 
-                {results.lintIssues && results.lintIssues.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
-                      ESLint Issues ({results.lintIssues.length})
-                    </h4>
-                    <ul className="space-y-2">
-                      {results.lintIssues.map((issue, index) => (
-                        <li
-                          key={index}
-                          className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md"
-                        >
-                          <span className="font-mono text-sm">
-                            Line {issue.line}: {issue.message}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  {/* ESLint Issues */}
+                  {results.lintIssues &&
+                    results.lintIssues.length > 0 &&
+                    results.lintIssues.map((issue, index) => (
+                      <div
+                        key={`lint-${index}`}
+                        className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md"
+                      >
+                        <span className="font-mono text-sm">
+                          Line {issue.line}: {issue.message}
+                        </span>
+                      </div>
+                    ))}
 
-                {results.securityIssues &&
-                  results.securityIssues.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
-                        Security Issues ({results.securityIssues.length})
-                      </h4>
-                      <ul className="space-y-2">
-                        {results.securityIssues.map((issue, index) => (
-                          <li
-                            key={index}
-                            className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md"
-                          >
-                            <div className="font-medium">{issue.title}</div>
-                            <div className="text-sm mt-1">
-                              {issue.description}
-                            </div>
-                            {issue.location && (
-                              <div className="font-mono text-xs mt-1">
-                                Location: {issue.location}
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {/* Security Issues */}
+                  {results.securityIssues &&
+                    results.securityIssues.length > 0 &&
+                    results.securityIssues.map((issue, index) => (
+                      <div
+                        key={`security-${index}`}
+                        className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md"
+                      >
+                        <span className="font-medium">Security: </span>
+                        <span>{issue.title}</span>
+                        <div className="text-sm mt-1">{issue.description}</div>
+                        {issue.location && (
+                          <div className="font-mono text-xs mt-1">
+                            Location: {issue.location}
+                          </div>
+                        )}
+                      </div>
+                    ))}
 
-                {results.aiReview && (
-                  <div className="mb-6">
-                    <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-2">
-                      AI Review
-                    </h4>
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
-                      <div className="prose dark:prose-invert max-w-none">
+                  {/* AI Review - display as a single item */}
+                  {results.aiReview && (
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                      <div className="prose dark:prose-invert max-w-none mt-1">
                         {results.aiReview}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+
+                {/* Show message if no issues found */}
+                {!results.lintIssues?.length &&
+                  !results.securityIssues?.length &&
+                  !results.aiReview && (
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      No issues found in your code.
+                    </div>
+                  )}
               </div>
             )}
           </div>
