@@ -99,8 +99,23 @@ export async function processRepository(url) {
   let repoDir = null;
 
   try {
+    console.log("Starting repository processing for URL:", url);
+
+    if (!url.includes("github.com")) {
+      throw new Error(
+        "Invalid GitHub URL. Please provide a valid GitHub repository URL"
+      );
+    }
+
     repoDir = await cloneRepository(url);
+    console.log("Repository cloned successfully to:", repoDir);
+
     const codeFiles = await getCodeFiles(repoDir);
+    console.log(`Found ${codeFiles.length} code files to analyze`);
+
+    if (codeFiles.length === 0) {
+      throw new Error("No JavaScript or Python files found in the repository");
+    }
 
     const fileContents = {};
 
@@ -110,13 +125,18 @@ export async function processRepository(url) {
         // Use relative path from the repo root
         const relativePath = path.relative(repoDir, filePath);
         fileContents[relativePath] = content;
+        console.log(`Processed file: ${relativePath}`);
       } catch (error) {
         console.error(`Error reading file ${filePath}:`, error);
       }
     }
 
+    console.log(
+      `Successfully processed ${Object.keys(fileContents).length} files`
+    );
     return fileContents;
   } catch (error) {
+    console.error("Repository processing error:", error);
     throw new Error(`Error processing repository: ${error.message}`);
   } finally {
     // Clean up the temporary directory

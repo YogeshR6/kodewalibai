@@ -89,8 +89,19 @@ export default function Home() {
 
     setIsLoading(true);
     setError("");
+    setResults(null); // Clear previous results when starting a new analysis
 
     try {
+      // Validate GitHub URL if repo type
+      if (inputType === "repo" && !currentInput.includes("github.com")) {
+        throw new Error("Please enter a valid GitHub repository URL");
+      }
+
+      console.log(
+        `Sending ${inputType} for analysis:`,
+        inputType === "repo" ? currentInput : "code snippet"
+      );
+
       const response = await fetch("/api/review", {
         method: "POST",
         headers: {
@@ -102,40 +113,64 @@ export default function Home() {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
         throw new Error(
-          "Failed to analyze code please check the code or link and try again"
+          data.error ||
+            "Failed to analyze. Please check your input and try again."
         );
       }
 
-      const data = await response.json();
+      console.log("Analysis response:", data);
+
+      // For repositories, check if we received the expected data
+      if (inputType === "repo") {
+        if (!data.fileCount || data.fileCount === 0) {
+          throw new Error(
+            "No analyzable files found in the repository. We support JavaScript and Python files only."
+          );
+        }
+
+        if (!data.lintIssues && !data.securityIssues && !data.aiReview) {
+          throw new Error(
+            "The repository was processed but no analysis results were generated."
+          );
+        }
+      }
+
       // Filter out duplicate eslint errors and warnings based on line and message
-      const uniqueLintIssues = data.lintIssues.reduce((unique, item) => {
-        const identifier = `${item.line}-${item.message}`;
-        return unique.some(
-          (issue) => `${issue.line}-${issue.message}` === identifier
-        )
-          ? unique
-          : [...unique, item];
-      }, []);
+      const uniqueLintIssues = Array.isArray(data.lintIssues)
+        ? data.lintIssues.reduce((unique, item) => {
+            const identifier = `${item.line}-${item.message}`;
+            return unique.some(
+              (issue) => `${issue.line}-${issue.message}` === identifier
+            )
+              ? unique
+              : [...unique, item];
+          }, [])
+        : [];
       data.lintIssues = uniqueLintIssues;
 
       // Filter out duplicate security issues based on title
-      const uniqueSecurityIssues = data.securityIssues.reduce(
-        (unique, item) => {
-          const identifier = `${item.location}-${item.title}`;
-          return unique.some(
-            (issue) => `${issue.location}-${issue.title}` === identifier
-          )
-            ? unique
-            : [...unique, item];
-        },
-        []
-      );
+      const uniqueSecurityIssues = Array.isArray(data.securityIssues)
+        ? data.securityIssues.reduce((unique, item) => {
+            const identifier = `${item.location}-${item.title}`;
+            return unique.some(
+              (issue) => `${issue.location}-${issue.title}` === identifier
+            )
+              ? unique
+              : [...unique, item];
+          }, [])
+        : [];
       data.securityIssues = uniqueSecurityIssues;
+
       setResults(data);
     } catch (err) {
-      setError(err.message || "An error occurred during code analysis");
+      console.error("Analysis error:", err);
+      setError(
+        err.message || "An error occurred during analysis. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +181,7 @@ export default function Home() {
       <header className="bg-white dark:bg-gray-800 shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            AI Code Review
+            Code Reviewer
           </h1>
           <div className="flex items-center space-x-4">
             <a
@@ -177,8 +212,9 @@ export default function Home() {
 
               <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Note:</strong> Currently, only Python and
-                  JavaScript/JSX files are supported for review.
+                  <strong>Note:</strong> Currently, only JavaScript/JSX files
+                  are supported for review, Python files are also supported but
+                  may not be completely accurate.
                 </p>
               </div>
 
@@ -268,6 +304,33 @@ export default function Home() {
                   All Issues and Recommendations
                 </h3>
 
+                {/* Repository summary if it's a repo analysis */}
+                {inputType === "repo" && results.fileCount && (
+                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                    <div className="text-sm">
+                      <span className="font-medium">Repository:</span>{" "}
+                      {repoInput}
+                      <br />
+                      <span className="font-medium">Files analyzed:</span>{" "}
+                      {results.fileCount}
+                      <br />
+                      {results.processedFiles &&
+                        results.processedFiles.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer font-medium">
+                              Files processed
+                            </summary>
+                            <ul className="mt-1 pl-5 text-xs list-disc">
+                              {results.processedFiles.map((file, index) => (
+                                <li key={index}>{file}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {/* ESLint Issues */}
                   {results.lintIssues &&
@@ -278,6 +341,11 @@ export default function Home() {
                         className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md"
                       >
                         <span className="font-mono text-sm">
+                          {inputType === "repo" && issue.filePath && (
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                              {issue.filePath}:
+                            </span>
+                          )}{" "}
                           Line {issue.line}: {issue.message}
                         </span>
                       </div>
@@ -293,6 +361,11 @@ export default function Home() {
                       >
                         <span className="font-medium">Security: </span>
                         <span>{issue.title}</span>
+                        {inputType === "repo" && issue.filePath && (
+                          <div className="font-mono text-xs mt-1 text-blue-600 dark:text-blue-400">
+                            File: {issue.filePath}
+                          </div>
+                        )}
                         <div className="text-sm mt-1">{issue.description}</div>
                         {issue.location && (
                           <div className="font-mono text-xs mt-1">

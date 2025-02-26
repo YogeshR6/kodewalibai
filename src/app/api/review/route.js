@@ -16,51 +16,96 @@ const openai = new OpenAI({ apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY_2 });
 
 // Security patterns to scan for
 const securityPatterns = [
+  // JavaScript patterns
   {
     pattern: /eval\s*\(/g,
     title: "Dangerous use of eval()",
     description:
       "The eval() function can execute arbitrary code, posing a security risk.",
+    languages: ["js", "jsx", "ts", "tsx", "py"],
   },
   {
     pattern: /document\.write\s*\(/g,
     title: "Insecure DOM manipulation",
     description: "document.write() is vulnerable to XSS attacks.",
+    languages: ["js", "jsx", "ts", "tsx"],
   },
   {
     pattern: /innerHTML\s*=/g,
     title: "Potential XSS vulnerability",
     description: "Using innerHTML can lead to cross-site scripting attacks.",
+    languages: ["js", "jsx", "ts", "tsx"],
   },
   {
     pattern: /localStorage\s*\.\s*setItem\s*\(/g,
     title: "Sensitive data storage",
     description:
       "Be cautious when storing data in localStorage as it is not secure for sensitive information.",
+    languages: ["js", "jsx", "ts", "tsx"],
   },
   {
     pattern: /password|token|secret|key/gi,
     title: "Potential hardcoded credentials",
     description:
       "Possible sensitive information found. Never hardcode passwords or keys.",
+    languages: ["js", "jsx", "ts", "tsx", "py"],
   },
   {
     pattern: /\.exec\s*\(\s*req\.body|\.exec\s*\(\s*req\.query/g,
     title: "SQL Injection risk",
     description:
       "Direct use of user input in database queries creates SQL injection vulnerabilities.",
+    languages: ["js", "jsx", "ts", "tsx"],
   },
   {
     pattern: /http:/g,
     title: "Insecure HTTP protocol",
     description:
       "Using HTTP instead of HTTPS can expose data to eavesdropping.",
+    languages: ["js", "jsx", "ts", "tsx", "py"],
   },
   {
     pattern: /apiKey\s*=\s*["']*[^"']+/g,
     title: "Hardcoded API keys",
     description:
       "Hardcoded API keys or tokens expose your service to unauthorized access.",
+    languages: ["js", "jsx", "ts", "tsx", "py"],
+  },
+  // Python-specific patterns
+  {
+    pattern: /exec\s*\(/g,
+    title: "Dangerous use of exec()",
+    description:
+      "The exec() function can execute arbitrary code, posing a security risk.",
+    languages: ["py"],
+  },
+  {
+    pattern: /input\s*\(/g,
+    title: "Unsafe input usage",
+    description:
+      "Using input() without proper validation can lead to security vulnerabilities.",
+    languages: ["py"],
+  },
+  {
+    pattern: /os\.system\s*\(/g,
+    title: "Dangerous system command execution",
+    description:
+      "Direct execution of system commands can lead to command injection vulnerabilities.",
+    languages: ["py"],
+  },
+  {
+    pattern: /subprocess\.call\s*\(/g,
+    title: "Unsafe subprocess execution",
+    description:
+      "Make sure to sanitize inputs when using subprocess to prevent command injection.",
+    languages: ["py"],
+  },
+  {
+    pattern: /pickle\.load/g,
+    title: "Unsafe deserialization",
+    description:
+      "Using pickle for deserialization can lead to remote code execution vulnerabilities.",
+    languages: ["py"],
   },
 ];
 
@@ -97,10 +142,16 @@ const eslintConfig = {
 };
 
 // Function to scan code for security issues
-function scanForSecurityIssues(code) {
+function scanForSecurityIssues(code, fileExt = ".js") {
   const issues = [];
+  const fileType = fileExt.replace(".", "");
 
   securityPatterns.forEach((pattern) => {
+    // Skip patterns that don't apply to this file type
+    if (pattern.languages && !pattern.languages.includes(fileType)) {
+      return;
+    }
+
     const matches = [...code.matchAll(pattern.pattern)];
 
     if (matches.length > 0) {
@@ -242,6 +293,8 @@ function guessFileExtension(code) {
 
 // Process all files in a repository
 async function processRepositoryFiles(files) {
+  console.log(`Starting analysis of ${Object.keys(files).length} files`);
+
   const results = {
     lintIssues: [],
     securityIssues: [],
@@ -250,35 +303,72 @@ async function processRepositoryFiles(files) {
   };
 
   for (const [filePath, content] of Object.entries(files)) {
-    const fileExt = path.extname(filePath);
+    const fileExt = path.extname(filePath).toLowerCase();
 
     // Only process code files that ESLint can handle
-    if ([".js", ".jsx", ".ts", ".tsx"].includes(fileExt)) {
+    if ([".js", ".jsx", ".ts", ".tsx", ".py"].includes(fileExt)) {
       try {
-        const lintResult = await lintCode(content, fileExt);
+        console.log(`Analyzing file: ${filePath}`);
 
-        if (lintResult.length > 0) {
-          results.lintIssues.push({
-            filePath,
-            issues: lintResult,
-          });
+        // Run ESLint on JavaScript files
+        if ([".js", ".jsx", ".ts", ".tsx"].includes(fileExt)) {
+          const lintResult = await lintCode(content, fileExt);
+
+          if (lintResult && lintResult.length > 0) {
+            results.lintIssues.push({
+              filePath,
+              issues: lintResult,
+            });
+            console.log(
+              `Found ${lintResult.length} lint issues in ${filePath}`
+            );
+          }
         }
 
-        const securityResult = scanForSecurityIssues(content);
+        // Run security scan on all files
+        const securityResult = scanForSecurityIssues(content, fileExt);
 
-        if (securityResult.length > 0) {
+        if (securityResult && securityResult.length > 0) {
           results.securityIssues.push({
             filePath,
             issues: securityResult,
           });
+          console.log(
+            `Found ${securityResult.length} security issues in ${filePath}`
+          );
         }
 
         results.processedFiles.push(filePath);
       } catch (error) {
         console.error(`Error processing file ${filePath}:`, error);
       }
+    } else {
+      console.log(`Skipping unsupported file type: ${filePath}`);
     }
   }
+
+  // Flatten the lint issues for the response
+  const flattenedLintIssues = results.lintIssues.flatMap((fileResult) =>
+    fileResult.issues.map((issue) => ({
+      ...issue,
+      filePath: fileResult.filePath,
+    }))
+  );
+
+  // Flatten the security issues for the response
+  const flattenedSecurityIssues = results.securityIssues.flatMap((fileResult) =>
+    fileResult.issues.map((issue) => ({
+      ...issue,
+      filePath: fileResult.filePath,
+    }))
+  );
+
+  results.lintIssues = flattenedLintIssues;
+  results.securityIssues = flattenedSecurityIssues;
+
+  console.log(
+    `Analysis complete. Found ${flattenedLintIssues.length} lint issues and ${flattenedSecurityIssues.length} security issues`
+  );
 
   return results;
 }
@@ -298,29 +388,67 @@ export async function POST(request) {
 
     // Handle code snippet
     if (type === "code") {
-      const fileExt = guessFileExtension(content);
-      if (fileExt !== ".py" && fileExt !== ".js" && fileExt !== ".jsx") {
+      try {
+        const fileExt = guessFileExtension(content);
+        if (fileExt !== ".py" && fileExt !== ".js" && fileExt !== ".jsx") {
+          return NextResponse.json(
+            {
+              error:
+                "Unsupported file type. Only Python and JavaScript/JSX are supported.",
+            },
+            { status: 400 }
+          );
+        }
+        const lintIssues = await lintCode(content, fileExt);
+        const securityIssues = scanForSecurityIssues(content, fileExt);
+        const aiReview = await getAIReview(content);
+
+        return NextResponse.json({
+          lintIssues,
+          securityIssues,
+          aiReview,
+        });
+      } catch (error) {
+        console.error("Error analyzing code snippet:", error);
         return NextResponse.json(
-          { error: "Unsupported file type" },
-          { status: 400 }
+          { error: `Failed to analyze code: ${error.message}` },
+          { status: 500 }
         );
       }
-      const lintIssues = await lintCode(content, fileExt);
-      const securityIssues = scanForSecurityIssues(content);
-      const aiReview = await getAIReview(content);
-
-      return NextResponse.json({
-        lintIssues,
-        securityIssues,
-        aiReview,
-      });
     }
 
     // Handle GitHub repository URL
     if (type === "repo") {
       try {
+        console.log("Processing GitHub repository:", content);
+
+        if (!content.includes("github.com")) {
+          return NextResponse.json(
+            {
+              error:
+                "Invalid GitHub URL. Please provide a valid GitHub repository URL.",
+            },
+            { status: 400 }
+          );
+        }
+
         const files = await processRepository(content);
+        console.log(
+          `Repository processed. Found ${Object.keys(files).length} files`
+        );
+
+        if (Object.keys(files).length === 0) {
+          return NextResponse.json(
+            { error: "No JavaScript or Python files found in the repository." },
+            { status: 404 }
+          );
+        }
+
         const results = await processRepositoryFiles(files);
+        console.log("Repository analysis complete:", {
+          fileCount: results.fileCount,
+          processedFiles: results.processedFiles.length,
+        });
 
         // Generate AI review only for repositories with reasonable size
         let aiReview = null;
@@ -344,6 +472,7 @@ export async function POST(request) {
           aiReview,
         });
       } catch (error) {
+        console.error("Repository analysis error:", error);
         return NextResponse.json(
           {
             error: `Error processing repository: ${error.message}`,
@@ -354,13 +483,13 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { error: "Invalid request type" },
+      { error: "Invalid request type. Must be 'code' or 'repo'." },
       { status: 400 }
     );
   } catch (error) {
     console.error("Error processing request:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error: " + error.message },
       { status: 500 }
     );
   }
